@@ -1,0 +1,12 @@
+```cs
+// preferably done once, as a field or something
+MyDefinitionId HydrogenId = MyDefinitionId.Parse("MyObjectBuilder_GasProperties / Hydrogen");
+List<IMyPowerProducer> engines;
+
+// where your block getters are
+engines = new List<IMyPowerProducer>();
+GridTerminalSystem.GetBlocksOfType<IMyPowerProducer>(engines, t => {
+        var comp = t.Components.Get<MyResourceSinkComponent>();
+    return comp != null && comp.AcceptedResources.Contains(HydrogenId);
+});
+```

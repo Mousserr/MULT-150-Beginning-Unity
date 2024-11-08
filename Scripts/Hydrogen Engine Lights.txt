@@ -1,0 +1,83 @@
+//x2,0,Hydro\6Engine\61,29,4:=:true[11]%3,0,Engine\61\6Running\6Light,58[7]0[5]%,y,,1.1.1
+// Above is your LOAD LINE. Copy it into Visual Script Builder to load your script.
+// dco.pe/vsb
+
+readonly string[] runStatus = new[] 
+{ 
+	"Program Running [|---]", 
+	"Program Running [-|--]", 
+	"Program Running [--|-]", 
+	"Program Running [---|]", 
+	"Program Running [--|-]", 
+	"Program Running [-|--]" 
+};
+
+
+void Main(string argument)
+{
+  // block declarations
+  string ERR_TXT = "";
+  List<IMyTerminalBlock> l0 = new List<IMyTerminalBlock>();
+  IMyPowerProducer v0 = null;
+  GridTerminalSystem.GetBlocksOfType<IMyPowerProducer>(l0, filterThis);
+  if(l0.Count == 0) {
+    ERR_TXT += "no Large Reactor blocks found\n";
+  }
+  else {
+    for(int i = 0; i < l0.Count; i++) {
+      if(l0[i].CustomName == "Hydrogen Engine 1") {
+        v0 = (IMyPowerProducer)l0[i];
+        break;
+      }
+    }
+    if(v0 == null) {
+      ERR_TXT += "no Large Reactor block named Hydro Engine 1 found\n";
+    }
+  }
+  List<IMyTerminalBlock> l1 = new List<IMyTerminalBlock>();
+  IMyReflectorLight v1 = null;
+  GridTerminalSystem.GetBlocksOfType<IMyReflectorLight>(l1, filterThis);
+  if(l1.Count == 0) {
+    ERR_TXT += "no Spotlight blocks found\n";
+  }
+  else {
+    for(int i = 0; i < l1.Count; i++) {
+      if(l1[i].CustomName == "Engine 1 Running Light") {
+        v1 = (IMyReflectorLight)l1[i];
+        break;
+      }
+    }
+    if(v1 == null) {
+      ERR_TXT += "no Spotlight block named Engine 1 Running Light found\n";
+    }
+     
+  // display errors
+  if(ERR_TXT != "") {
+    Echo("Script Errors:\n"+ERR_TXT+"(make sure block ownership is set correctly)");
+    return;
+  }
+  else {Echo("");}
+  
+  // logic
+  if(((IMyPowerProducer)v0).IsWorking == true) {
+    v1.ApplyAction("OnOff");
+  }
+    
+    // Display All Information   
+   /* IMyTextSurface pb = Me.GetSurface(0);
+    pb.ContentType = ContentType.TEXT_AND_IMAGE;
+    pb.FontSize = 2;
+    pb.TextPadding = 5;
+    pb.Alignment = TextAlignment.CENTER;
+    pb.WriteText("Power Display\n and Manager\n\n" + runStatus[runAdvancer]); */
+  
+}
+
+bool filterThis(IMyTerminalBlock block) {
+  return block.CubeGrid == Me.CubeGrid;
+}
+
+public Program()  
+{  
+    Runtime.UpdateFrequency = UpdateFrequency.Update10; 
+}     

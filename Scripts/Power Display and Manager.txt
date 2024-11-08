@@ -1,0 +1,586 @@
+/***************************************************                       
+=====    Settings that can be Edited    =====                       
+***************************************************/  
+      
+//Custom Name of LCD Panel(s)                       
+const string lcdName = "LCD Power";      
+      
+//Custom Name of Lights                       
+const string lightsName = "Solar Lights";      
+      
+//Bar Graph Starting Character.                       
+string start = "    [";      
+      
+//Bar Graph Ending Character.                       
+string end = "]";      
+      
+//Bar Graph Delimiter Character.                       
+string bar = "I";      
+      
+//Bar Graph Empty Space Character.                       
+string fill = "`";      
+      
+// Percent of Battery Storage to Turn on Reactors.           
+float BTOn = 80;      
+      
+// Percent of Battery Storage to Turn off Reactors.           
+float BTOff = 99;      
+      
+// Percent of Battery Usage to Turn on Reactors.           
+float BPTog = 90;      
+
+readonly string[] runStatus = new[] 
+{ 
+	"Program Running [|---]", 
+	"Program Running [-|--]", 
+	"Program Running [--|-]", 
+	"Program Running [---|]", 
+	"Program Running [--|-]", 
+	"Program Running [-|--]" 
+};
+      
+/***************************************************                       
+=====         End Editing Settings.         =====                       
+***************************************************/      
+      
+List<IMyTerminalBlock> allSolar = new List<IMyTerminalBlock>();      
+List<IMyTerminalBlock> allBatteries = new List<IMyTerminalBlock>();      
+List<IMyTerminalBlock> allReactors = new List<IMyTerminalBlock>();      
+List<IMyTerminalBlock> allLights = new List<IMyTerminalBlock>();      
+List<IMyTerminalBlock> allLcds = new List<IMyTerminalBlock>(); 
+List<IMyTerminalBlock> allTurbines = new List<IMyTerminalBlock>();
+List<IMyTerminalBlock> allHydroEngines = new List<IMyTerminalBlock>();
+
+int runAdvancer;
+
+public Program()  
+{  
+    Runtime.UpdateFrequency = UpdateFrequency.Update10; 
+}     
+      
+void Main(string argument)      
+{      
+
+    GridTerminalSystem.GetBlocksOfType<IMySolarPanel>(allSolar, b => b.CubeGrid.GridSizeEnum == Me.CubeGrid.GridSizeEnum);      
+    GridTerminalSystem.GetBlocksOfType<IMyBatteryBlock>(allBatteries, b => b.CubeGrid == Me.CubeGrid);      
+    GridTerminalSystem.GetBlocksOfType<IMyReactor>(allReactors, b => b.CubeGrid == Me.CubeGrid);      
+    GridTerminalSystem.SearchBlocksOfName(lightsName, allLights, b => b.CubeGrid.GridSizeEnum == Me.CubeGrid.GridSizeEnum);      
+    GridTerminalSystem.SearchBlocksOfName(lcdName, allLcds, b => b.CubeGrid == Me.CubeGrid);     
+    GridTerminalSystem.GetBlocksOfType<IMyPowerProducer>(allTurbines, t => t.BlockDefinition.SubtypeId.Contains("Turbine") || t.BlockDefinition.SubtypeId.Contains("MA_Windmill"));
+    GridTerminalSystem.GetBlocksOfType<IMyPowerProducer>(allHydroEngines, t => t.BlockDefinition.SubtypeId.Contains("HydrogenEngine"));
+      
+    StringBuilder outputSolar = new StringBuilder();      
+    StringBuilder outputBattery = new StringBuilder();      
+    StringBuilder outputReactor = new StringBuilder();
+    StringBuilder outputWind = new StringBuilder();
+    StringBuilder outputEngine = new StringBuilder();
+    StringBuilder output = new StringBuilder();      
+      
+    string arg = argument.ToLower();      
+      
+    float fontSize = 0.55f;  
+
+    // Grid Size                      
+    string gridS = Me.CubeGrid.GridSizeEnum.ToString();      
+      
+    // Solar Stuff                               
+    float solarC = 0; // Solar Current output                                       
+    float solarM = 0; // Solar Maximum Output                       
+    float solarIM = 0; // Solar Ideal Maximum Output (based on Grid Size)                           
+      
+    if (gridS == "Large")      
+    {      
+        solarIM = allSolar.Count * 160; // Large Grid Solar Maximum                        
+    }      
+    else if (gridS == "Small")      
+    {      
+        solarIM = allSolar.Count * 40; // Small Grid Solar Maximum                      
+    }      
+      
+    // Battery Stuff                           
+    float battM = 0; // Battery Maximum Stored power                           
+    float battS = 0; // Battery Current Stored power                                        
+    float battT = 0; // Battery Storage Percentage                            
+    float battC = 0; // Battery Current Output             
+    float battI = 0; // Battery Current Input     
+    float battO = 0; // Battery Maximum Output                            
+    float battP = 0; // Battery Usage Percentage      
+    float battOT = 0;      
+    bool mode = false; //Battery Recharge Status  
+    //string mode = "";
+    bool modeT = false;
+    string bModes = "";  
+      
+    // Reactor Stuff                                       
+    float reactM = 0; // Reactor Maximum Output                             
+    float reactC = 0; // Reactor Current Output                             
+    float reactT = 0; // Reactor Usage Percentage      
+    float reactMT = 0;      
+    bool rOnOff = false; // Reactor OnOff Status              
+    string rOnOffs = "";      
+    double uranium = 0;    
+    
+    // Wind Stuff                               
+    float windC = 0; // Wind Current output                                       
+    float windM = 0; // Wind Maximum Output 
+    //float windIM = allTurbines.Count * 400; // Wind Ideal Maximum Output
+    
+    // Engine Stuff                                       
+    float engineM = 0; // Engine Maximum Output                             
+    float engineC = 0; // Engine Current Output                             
+    float engineT = 0; // Engine Usage Percentage      
+    float engineMT = 0;      
+    bool eOnOff = false; // Engine OnOff Status              
+    string eOnOffs = "";
+    float hydro = 0;
+    float hydroFill = 0;
+    float hydroP = 0;
+    if (gridS == "Large")      
+    {      
+        hydroFill = 100000; //Large Grid Hydrogen Engine Tank Capacity.
+    }      
+    else if (gridS == "Small")      
+    {      
+        hydroFill = 5000; //Small Grid Hydrogen Engine Tank Capacity.
+    }   
+      
+    // Total Stuff                           
+    float totalCap = 0; // Total power the grid can generate.        
+    float totalM = 0;      
+    float totalC = 0;      
+    float totalT = 0;      
+      
+    /*****************************                
+    =====      Solar      =====                
+    *****************************/      
+    if (allSolar.Count > 0)      
+    {      
+        foreach (IMySolarPanel solar in allSolar)      
+        {      
+            solarM += solar.MaxOutput;      
+            solarC += solar.CurrentOutput;      
+        }      
+      
+        var solarTM = ((solarM * 1000) / solarIM) * 100;      
+        var solarT = (solarC == 0 || solarM == 0 ? 0 : (solarC / solarM)); // Avoids a NaN if both are at 0                
+      
+        // Lights based on Solar Maximum.           
+        if (allLights.Count > 0)      
+        {      
+            foreach (IMyLightingBlock lights in allLights)      
+            {      
+                if (lights != null)      
+                {      
+                    if (solarTM <= 10)      
+                    {      
+                        lights.Color = new Color(255, 0, 0);
+                        lights.BlinkIntervalSeconds = 0;     
+                    }      
+                    else if (solarTM > 10 && solarTM < 90)      
+                    {      
+                        lights.Color = new Color(255, 255, 0);
+                        lights.BlinkIntervalSeconds = 0; 
+                    }      
+                    else      
+                    {      
+                        lights.Color = new Color(0, 255, 0);
+                        lights.BlinkIntervalSeconds = 0; 
+                    }      
+                }      
+            }      
+        }      
+      
+        // Display Solar Information                
+        outputSolar.Append(      
+        "    Solar Panels: " + allSolar.Count + "\n"      
+        + "    Maximum:  " + formatLargeNumber(solarM * 1000000).ToString() + "W of " + formatLargeNumber(solarIM * 1000).ToString() + "W\n"      
+        + barBuilder((solarM * 1000) / solarIM)      
+        + "    Output: " + formatLargeNumber(solarC * 1000000).ToString() + "W of " + formatLargeNumber(solarM * 1000000).ToString() + "W\n"      
+        + barBuilder(solarT)      
+        + "\n"      
+        );      
+    }   
+
+    /*****************************                
+    =====      Turbine      =====                
+    *****************************/ 
+    
+    if (allTurbines.Count > 0)      
+    {      
+        foreach (IMyPowerProducer wind in allTurbines)      
+        {      
+            windM += wind.MaxOutput;      
+            windC += wind.CurrentOutput;      
+        }      
+        
+        var windT = (windC == 0 || windM == 0 ? 0 : (windC / windM)); // Avoids a NaN if both are at 0    
+      
+        // Display Wind Information                
+        outputWind.Append(      
+        "    Wind Turbines: " + allTurbines.Count + "\n"  
+        /* + "    Maximum:  " + formatLargeNumber(windM * 1000000).ToString() + "W of " + formatLargeNumber(windIM * 1000).ToString() + "W\n" */     
+        /* + barBuilder((windM * 1000) / windIM) */
+		+ "    Maximum:  " + formatLargeNumber(windM * 1000000).ToString() + "W\n"
+        + "    Output: " + formatLargeNumber(windC * 1000000).ToString() + "W of " + formatLargeNumber(windM * 1000000).ToString() + "W\n"      
+        + barBuilder(windT)      
+        + "\n"      
+        );      
+    }    
+    
+    /*****************************                
+    =====     Battery     =====                
+    *****************************/      
+    if (allBatteries.Count > 0)      
+    {      
+        foreach (IMyBatteryBlock batt in allBatteries)      
+        {      
+            battM += batt.MaxStoredPower;      
+            battS += batt.CurrentStoredPower;      
+            battC += batt.CurrentOutput;      
+            battI += batt.CurrentInput;     
+            mode = batt.ChargeMode == ChargeMode.Recharge;
+            modeT = batt.IsCharging;      
+        }      
+        battT = battS / battM;      
+        battO = battM * 4;      
+        battP = battC / battO;      
+        foreach (IMyBatteryBlock batt in allBatteries)      
+        {      
+			if (allReactors.Count > 0 || allHydroEngines.Count > 0)
+			{
+				foreach (IMyReactor react in allReactors)      
+				{
+					if (react.Enabled)
+					{
+						if ((battT * 100 ) < 10 && modeT == false)      
+						{      
+							batt.ChargeMode = ChargeMode.Recharge;      
+						}      
+						if ((battT * 100) > 99 && modeT == true)      
+						{      
+							batt.ChargeMode = ChargeMode.Auto;      
+						}
+					}
+					else
+					{
+						if (modeT == true)
+						{
+							batt.ChargeMode = ChargeMode.Auto;
+						}
+					}
+				}
+                foreach (IMyPowerProducer engine in allHydroEngines)      
+				{
+					if (engine.Enabled)
+					{
+						if ((battT * 100 ) < 10 && modeT == false)      
+						{      
+							batt.ChargeMode = ChargeMode.Recharge;      
+						}      
+						if ((battT * 100) > 99 && modeT == true)      
+						{      
+							batt.ChargeMode = ChargeMode.Auto;      
+						}
+					}
+					else
+					{
+						if (modeT == true)
+						{
+							batt.ChargeMode = ChargeMode.Auto;
+						}
+					}
+				}
+			}
+                  
+            if (batt.Enabled)      
+            {      
+                battOT = battO;      
+            }      
+            else      
+            {      
+                battOT = 0;      
+            }      
+        }      
+        if (modeT ==  true)      
+        {      
+            bModes = "Gaining Power";      
+        }      
+        else if (modeT == false)      
+        {      
+            bModes = "Losing Power";      
+        } 
+                  
+        // Display Battery Information                
+        outputBattery.Append(      
+        "    Batteries: " + allBatteries.Count +", " + bModes + "\n"      
+		+ "    Input: " + formatLargeNumber(battI * 1000000).ToString() + "W of " + formatLargeNumber(battO * 1000000).ToString() + "W\n"      
+        + barBuilder(battI / battO)
+		+ "    Output: " + formatLargeNumber(battC * 1000000).ToString() + "W of " + formatLargeNumber(battO * 1000000).ToString() + "W\n"      
+        + barBuilder(battP)
+        + "    Stored: " + formatLargeNumber(battS * 1000000).ToString() + "Wh of " + formatLargeNumber(battM * 1000000).ToString() + "Wh\n"      
+        + barBuilder(battT)    
+        + "\n "      
+        );      
+    }      
+      
+    /*****************************                
+    =====    Reactor    =====                
+    *****************************/      
+    if (allReactors.Count > 0)      
+    {      
+        foreach (IMyReactor react in allReactors)      
+        {      
+            reactM += react.MaxOutput;      
+            reactC += react.CurrentOutput;      
+            reactT = reactC / reactM;      
+            rOnOff = react.Enabled;    
+                
+            List<MyInventoryItem> reactInventory = new List<MyInventoryItem>();
+            react.GetInventory(0).GetItems(reactInventory);  
+            string reactList = "";
+            
+            foreach (MyInventoryItem tempInv in reactInventory)
+            {
+                reactList = tempInv.Type.ToString();
+
+                if (reactList.Contains("MyObjectBuilder_Ingot/Uranium"))           
+                {      
+                    uranium += (double)tempInv.Amount;
+                } 
+            }    
+      
+            if (allBatteries.Count != 0)      
+            {      
+                foreach (IMyBatteryBlock batt in allBatteries)      
+                {      
+                    if (batt.Enabled)      
+                    {      
+                        if ((((battT * 100) <= BTOn || (battP * 100) >= BPTog) || mode == true) && uranium > 0)      
+                        {    
+                            react.Enabled = true;      
+                        }      
+                        else if (((battT * 100) >= BTOff && (battP * 100) < BPTog) || uranium == 0)      
+                        {      
+                            react.Enabled = false;      
+                        }      
+                    }      
+                    else      
+                    {      
+                        react.Enabled = true;      
+                    }      
+                }      
+            }      
+            else      
+            {      
+                react.Enabled = true;      
+            }      
+      
+            if (react.Enabled)      
+            {      
+                reactMT = reactM;      
+            }      
+            else      
+            {      
+                reactMT = 0;      
+            }      
+        }      
+      
+        if (rOnOff == true)      
+        {      
+            rOnOffs = ", On";      
+        }      
+        else if (rOnOff == false)      
+        {      
+            rOnOffs = ", Off";      
+        }      
+      
+        // Display Reactor Information                
+        outputReactor.Append(      
+        "   Reactors: " + allReactors.Count + rOnOffs + ", Uranium: " + uranium.ToString("0.00") + "\n"      
+        + "    Output: " + formatLargeNumber(reactC * 1000000).ToString() + "W of " + formatLargeNumber(reactM * 1000000).ToString() + "W\n"      
+        + barBuilder(reactT)      
+        + "\n"      
+        );      
+    }    
+    
+    /********************************                
+    =====    Hydrogen Engine    =====                
+    ********************************/      
+    if (allHydroEngines.Count > 0)      
+    {      
+        foreach (IMyPowerProducer engine in allHydroEngines)      
+        {      
+            engineM += engine.MaxOutput;      
+            engineC += engine.CurrentOutput;      
+            engineT = engineC / engineM;      
+            eOnOff = engine.Enabled; 
+            //hydro = engine.DetailedInfo.Split(new string[] { "\n" }, StringSplitOptions.None)[3];
+            var h2Di = engine.DetailedInfo;
+            var h2Lines = h2Di.Split('\n');
+            var h2Output = h2Lines[3].Split('(')[1].Trim();
+            var more = h2Output.Split('L');
+            hydro = Convert.ToSingle(more[0]);
+            hydroP = hydro / hydroFill;
+            
+            if (allBatteries.Count != 0)      
+            {      
+                foreach (IMyBatteryBlock batt in allBatteries)      
+                {      
+                    if (batt.Enabled)      
+                    {      
+                        if ((((battT * 100) <= BTOn || (battP * 100) >= BPTog) || mode == true) && hydro > 0) 
+                        {    
+                            engine.Enabled = true;      
+                        }      
+                        else if (((battT * 100) >= BTOff && (battP * 100) < BPTog) || hydro == 0)
+                        {      
+                            engine.Enabled = false;      
+                        }      
+                    }      
+                    else      
+                    {      
+                        engine.Enabled = true;      
+                    }      
+                }      
+            }      
+            else      
+            {      
+                engine.Enabled = true;      
+            }      
+      
+            if (engine.Enabled)      
+            {      
+                engineMT = engineM;      
+            }      
+            else      
+            {      
+                engineMT = 0;      
+            }      
+        }      
+      
+        if (eOnOff == true)      
+        {      
+            eOnOffs = ", On";      
+        }      
+        else if (eOnOff == false)      
+        {      
+            eOnOffs = ", Off";      
+        }      
+      
+        // Display engine Information                
+        outputEngine.Append(      
+        "    Hydrogen Engines: " + allHydroEngines.Count + eOnOffs + "\n"      
+        + "    Output: " + formatLargeNumber(engineC * 1000000).ToString() + "W of " + formatLargeNumber(engineM * 1000000).ToString() + "W\n"      
+        + barBuilder(engineT)   
+        + "    Hydrogen: " + hydro.ToString() + "L of " + hydroFill.ToString() + "L\n"      
+        + barBuilder(hydroP)
+        + "\n"      
+        );      
+    } 
+    
+    // Total Power                
+    totalCap = solarM * 1000000 + battOT * 1000000 + reactMT * 1000000 + windM * 1000000 + engineMT * 1000000;      
+    totalM = solarM + battOT + reactMT + windM + engineM;      
+    totalC = solarC + battC + reactC + windC + engineC;      
+    totalT = totalC / totalM;      
+      
+    // Display Total Information                
+    output.Append(      
+    "    Total Power: " + formatLargeNumber(totalCap).ToString() + "W\n"      
+    + barBuilder(totalT)      
+    );          
+      
+      
+    // Display All Information   
+    IMyTextSurface pb = Me.GetSurface(0);
+    pb.ContentType = ContentType.TEXT_AND_IMAGE;
+    pb.FontSize = 2;
+    pb.TextPadding = 5;
+    pb.Alignment = TextAlignment.CENTER;
+    pb.WriteText("Power Display\n and Manager\n\n" + runStatus[runAdvancer]);
+ 
+    Echo(runStatus[runAdvancer] + "\n"     
+    + "Solar Panels: " + allSolar.Count + "\n"   
+    + "Solar Lights: " + allLights.Count + "\n"  
+    + "Wind Turbines: " + allTurbines.Count + "\n"    
+    + "Batteries: " + allBatteries.Count + "\n"      
+    + "Reactors: " + allReactors.Count + "\n"   
+    + "Hydrogen Engines: " + allHydroEngines.Count + "\n\n"
+    + gridS + " Grid\n"); 
+	runAdvancer = (runAdvancer + 1) % runStatus.Length;
+    if (allLcds.Count > 0)      
+    {      
+        foreach (IMyTextPanel lcd in allLcds)      
+        {      
+            if (lcd != null)      
+            {      
+                lcd.ContentType = ContentType.TEXT_AND_IMAGE;
+                lcd.TextPadding = 0;
+                lcd.Alignment = TextAlignment.LEFT;
+                lcd.FontSize = fontSize;      
+                lcd.WriteText(outputSolar.ToString() + outputWind.ToString() + outputBattery.ToString() + outputReactor.ToString() + outputEngine.ToString() + output.ToString());   
+            }      
+        }      
+    }      
+      
+    // Clear Lists                           
+    allSolar.Clear();      
+    allBatteries.Clear();      
+    allReactors.Clear();      
+    allLights.Clear();      
+    allLcds.Clear();     
+    allTurbines.Clear();
+    allHydroEngines.Clear();
+}      
+      
+public string barBuilder(float num)      
+{      
+    double p = 0.0d;      
+    int i = 0;      
+    int l = 0;      
+    StringBuilder barString = new StringBuilder();      
+      
+    p = num * 100;      
+    barString.Append(start);      
+    for (i = 0; i < (p / 2); i++)      
+    {      
+        barString.Append(bar);      
+    }      
+    l = 50 - i;      
+    while (l > 0)      
+    {      
+        barString.Append(fill);      
+        l--;      
+    }      
+    barString.Append(end);      
+    barString.Append(" " + (p / 100).ToString("0.00" + " %") + "\n");      
+    string barOutput = barString.ToString();      
+    barString.Clear();      
+    return barOutput;      
+}      
+      
+public string formatLargeNumber(double number, bool compress = true, char base_ordinal = ' ')      
+{      
+    if (!compress)      
+        return number.ToString(      
+        "#,###,###,###,###,###,###,###,###,###");      
+      
+    string ordinals = " kMGTPEZY";      
+    double compressed = number;      
+      
+    int start = ordinals.IndexOf(base_ordinal);      
+    var ordinal = (start < 0 ? 0 : start);      
+      
+    while (compressed >= 1000 && ordinal + 1 < ordinals.Length)      
+    {      
+        compressed /= 1000;      
+        ordinal++;      
+    }      
+      
+    string res = Math.Round(compressed, 2, MidpointRounding.AwayFromZero).ToString();      
+      
+    if (ordinal > 0)      
+        res += " " + ordinals[ordinal];      
+      
+    return res;      
+}
