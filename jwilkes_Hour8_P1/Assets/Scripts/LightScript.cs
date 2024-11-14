@@ -21,7 +21,7 @@ public class LightScript : MonoBehaviour
     {
 		if (Input.GetKeyDown(KeyCode.L))
 		{
-			lightComponent.enabled=!lightComponent.enabled;
+			lightComponent.enabled = !lightComponent.enabled;
 			/*
 			if (lightComponent.enabled != true)
 				lightComponent.enabled = true;
