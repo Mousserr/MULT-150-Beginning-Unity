@@ -4,10 +4,16 @@ using UnityEngine;
 
 public class TriggerScript : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
+	public GameObject rightCollider;
+	public GameObject leftCollider;
+	public GameObject ball;
+
+	// Start is called before the first frame update
+	void Start()
     {
-        
+		rightCollider = GameObject.Find("RTrigger");
+		leftCollider = GameObject.Find("LTrigger");
+		ball = GameObject.Find("Sphere");
     }
 
     // Update is called once per frame
@@ -16,18 +22,18 @@ public class TriggerScript : MonoBehaviour
         
     }
 
-	private void OnTriggerEnter(Collider other)
+	void OnTriggerEnter(Collider ball)
 	{
-		print(other.gameObject.name + " has entered the cube");
+		print(ball + " has entered the " + gameObject.name);
 	}
 
-	private void OnTriggerStay(Collider other)
+	void OnTriggerStay(Collider ball)
 	{
-		print (other.gameObject.name + " is still in the cube");
+		print(ball + " is still in the " + gameObject.name);
 	}
 
-	private void OnTriggerExit(Collider other)
+	void OnTriggerExit(Collider ball)
 	{
-		print(other.gameObject.name + " has left the cube ");
+		print (ball + " has exited the " + gameObject.name);
 	}
 }
