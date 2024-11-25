@@ -4,6 +4,15 @@ public class PrefabGenerator : MonoBehaviour
 {
    public GameObject prefab;
 
+	void Start()
+	{
+		for (int x = 0; x < 10; x++)
+		{
+			transform.position = transform.position + new Vector3(0, 0, -5);
+			Instantiate(prefab, transform.position, transform.rotation);
+		}
+	}
+
     // Update is called once per frame
     void Update()
     {
