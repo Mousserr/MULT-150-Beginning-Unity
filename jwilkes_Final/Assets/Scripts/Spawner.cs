@@ -27,10 +27,21 @@ public class Spawner : MonoBehaviour
 
 
 		elapsedTime += Time.deltaTime;
-		totalTime += Time.deltaTime;
 
 		if (elapsedTime > spawnCycle) 
 		{
+			if (spawnPowerup)
+			{
+				temp = Instantiate(powerupPrefab) as GameObject;
+				++spawnCount;
+			}
+			else
+			{
+				temp = Instantiate(obstaclePrefab) as GameObject;
+				++spawnCount;
+			}
+
+			/*
 			if (spawnCount != sCount)
 			{
 				if (spawnPowerup)
@@ -49,7 +60,7 @@ public class Spawner : MonoBehaviour
 				temp = Instantiate(donutPrefab) as GameObject;
 				spawnCount = 0;
 			}
-
+			*/
 			Vector3 position = temp.transform.position;
 			position.x = Random.Range(-3f, 3f);
 			temp.transform.position = position;
